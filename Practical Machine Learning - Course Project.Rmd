@@ -14,7 +14,7 @@ The document that follows, gives all the steps that were taken as well as explai
 
 First , we install the required packages and load the required libraries.
 
-```{r,echo=TRUE, results=HIDE}
+```{r,echo=TRUE, results='hide'}
 ##Install.packages("caret")
 library(caret)
 library(randomForest)

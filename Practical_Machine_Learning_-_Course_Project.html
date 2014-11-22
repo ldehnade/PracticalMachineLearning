@@ -63,6 +63,8 @@ if (window.hljs && document.readyState && document.readyState === "complete") {
 <div id="initial-steps" class="section level2">
 <h2>Initial steps</h2>
 <p>First , we install the required packages and load the required libraries.</p>
+<pre class="r"><code>##Install.packages(&quot;caret&quot;)
+library(caret)</code></pre>
 <pre><code>## Loading required package: lattice
 ## Loading required package: ggplot2
 ## 
@@ -70,9 +72,9 @@ if (window.hljs && document.readyState && document.readyState === "complete") {
 ## 
 ## The following object is masked _by_ '.GlobalEnv':
 ## 
-##     best
-## 
-## randomForest 4.6-10
+##     best</code></pre>
+<pre class="r"><code>library(randomForest)</code></pre>
+<pre><code>## randomForest 4.6-10
 ## Type rfNews() to see new features/changes/bug fixes.</code></pre>
 <p>We read the provided data which will be used to create the training and testing datasets.</p>
 <pre class="r"><code>ds&lt;-read.csv(&quot;pml-training.csv&quot;)</code></pre>
