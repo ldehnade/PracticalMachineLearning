@@ -1,0 +1,283 @@
+---
+title: "Practical Machine Learning - Course Project"
+output: html_document
+---
+
+
+## Executive summary
+The objective of this project is to built a predictive model which, based on data from accelerometers on the belt, forearm  and dumbbell of participant, will be able to evaluate if a weight lifting movement is well executed. 
+
+The document that follows, gives all the steps that were taken as well as explain the different choices that were made to build the this predictive model
+
+
+## Initial steps
+
+First , we install the required packages and load the required libraries.
+
+```{r,echo=TRUE, results=HIDE}
+##Install.packages("caret")
+library(caret)
+library(randomForest)
+```
+
+We read the provided data which will be used to create the training and testing datasets.
+
+```{r,echo=TRUE}
+ds<-read.csv("pml-training.csv")
+```
+
+## Predictor selection
+
+The provided dataset ("pml-training.csv") has one outcome, 159 predictors and over 19000 lines for 4 separate sensors. 
+
+In this section, in an effort to reduce the amount of data to process, we are going to try to look at the different predictors to evaluate if they have an added value to the predictive model we are trying to build
+
+### Time related predictors
+
+We have chosen to ignore  all time related predictors. The model that we are trying to built has no notion of time and we don't feel they have an added value in this particular context.
+
+### Belt sensor predictors
+
+The belt sensor has 38 distinct predictors.
+
+```{r,echo=TRUE}
+belt_subset <- ds[,c(8:45)]
+summary(belt_subset)
+```
+
+We can see that many of the predictors are very sparsely populated. In fact 25 of the 38 predictor are either empty or populated by  the value "N/A" nearly 98% of the time. These sparsely populated predictors seem to have a value only when they are associated to a record of type a "New window". 
+
+Due to their sparsity and due to the fact that the type of record  "New window" is not present in the test dataset we have chosen to eliminate these predictors.
+
+We then keep only 13 of the 38 predictors associated to the belt sensor. The list of  kept predictors is given below.
+
+```{r,echo=TRUE}
+valid_belt_predictors <- c(8:11,37:45)
+names(ds[,valid_belt_predictors])
+```
+
+### Arm sensors predictors
+
+The arm sensor has also 38 predictors. The pattern of the data associated to theses sensors is similar to what was described for the belt sensors. We have then, for the same reasons as given for the belt sensor, decided to reject the predictors that were only populated for the records of type "New window". 
+
+```{r,echo=TRUE}
+arm_subset <- ds[,c(46:83)]
+summary(arm_subset)
+```
+
+Again, we were left with 13 sensors out of 38. The list of sensor that will be considered in the predictive model is given below.
+
+```{r,echo=TRUE}
+valid_arm_predictors <- c(46:49,60:68)
+names(ds[,valid_arm_predictors])
+```
+
+### Dumbbell sensors predictors
+
+The dumbbell sensor has also 38 predictors, and for the same reasons mentioned in the previous two cases we have also rejected the predictors who were populated only in records of type "New window".
+
+```{r,echo=TRUE}
+dumbbell_subset <- ds[,c(84:121)]
+summary(dumbbell_subset)
+```
+
+Again, we were left with 13 sensors out of 38. The list of sensor that will be considered in the predictive model is given below.
+
+```{r,echo=TRUE}
+valid_dumbbell_predictors <- c(84:86, 102, 113:121)
+names(ds[,valid_dumbbell_predictors])
+```
+
+### Forearm sensors  predictors
+
+Finally, the forearm sensor has also 38 predictors, and again for the reasons mentioned in the previous three cases we have also rejected the predictors who were populated only in records of type "New window".
+
+
+```{r,echo=TRUE}
+forearm_subset <- ds[,c(122:159)]
+summary(forearm_subset)
+```
+
+Again, we were left with 13 sensors out of 38. The list of sensor that will be considered in the predictive model is given below.
+
+```{r,echo=TRUE}
+valid_forearm_predictors <- c(122:124,140, 151:159)
+names(ds[,valid_forearm_predictors])
+```
+
+## Training and testing dataset
+
+The model we will be building will have 52 predictors. Now that the needed predictors have been identified we can reduce the dataset initially loaded by eliminating the unwanted predictor.
+
+```{r,echo=TRUE}
+valid_predictor <- c(valid_belt_predictors, valid_arm_predictors, valid_dumbbell_predictors, valid_forearm_predictors)
+reduced_ds <- ds[,c(valid_predictor,160)]
+```
+
+We can also generate the training and testing datasets that will respectively be use to build and validate our predictive model.
+
+
+```{r,echo=TRUE}
+set.seed(13579)
+
+inTrain <- createDataPartition(y=reduced_ds$classe,p=0.70, list=FALSE)
+training_reduced_ds <- reduced_ds[inTrain,]
+testing_reduced_ds <- reduced_ds[-inTrain,]
+
+dim(training_reduced_ds)
+dim(testing_reduced_ds)
+```
+
+## Model development
+
+In this section we are going to used the training dataset described above to build a 
+predictive model base on the random forrest method, This method has been chosen as it was the one favoured in the study on which this project is based.
+
+To build the random forrest model we have chosen to use the randomForest() function rather that the train function for performance reasons. THe randomForrest() function took only a few minutes to generate the model when it took a few hours to do the same task using the train() function with the parameter "rf"
+
+```{r,echo=TRUE}
+modelfit <- randomForest(classe ~ .,data=training_reduced_ds)
+modelfit
+```
+
+We run the model on the test data to validate its accuracy
+
+```{r,echo=TRUE}
+predictions <- predict(modelfit, newdata = testing_reduced_ds)
+confusionMatrix(predictions,testing_reduced_ds$classe)
+```
+
+We can see that the model developed has a very high level of accuracy at 99.58%. In the next section we are going to verify the this high level of accuracy is related to the quality of the model and is not the result of overfitting the model to the training dataset.
+
+
+##Error estimation Using K-fold
+
+To confirm the validity of the error estimation for our model above  and to verify we have not overfitted our model we are going to do a cross validation using k-fold. According to the literature on the subject, 10-fold cross-validation is commonly used for this purpose and will be the approach chosen and described below  
+
+We first generat our 10 mutually exclusive folds
+
+```{r,echo=TRUE}
+set.seed(2468)
+
+folds <- createFolds(y=reduced_ds$classe, k=10, list = TRUE, returnTrain=FALSE)
+sapply(folds,length)
+```
+
+We create 10 training and testing datasets based on the folds generate above.
+
+```{r,echo=TRUE}
+training_reduced_ds_kf01 <- training_reduced_ds[-folds$Fold01,]
+testing_reduced_ds_kf01 <- training_reduced_ds[folds$Fold01,]
+
+training_reduced_ds_kf02 <- training_reduced_ds[-folds$Fold02,]
+testing_reduced_ds_kf02 <- training_reduced_ds[folds$Fold02,]
+
+training_reduced_ds_kf03 <- training_reduced_ds[-folds$Fold03,]
+testing_reduced_ds_kf03 <- training_reduced_ds[folds$Fold03,]
+
+training_reduced_ds_kf04 <- training_reduced_ds[-folds$Fold04,]
+testing_reduced_ds_kf04 <- training_reduced_ds[folds$Fold04,]
+
+training_reduced_ds_kf05 <- training_reduced_ds[-folds$Fold05,]
+testing_reduced_ds_kf05 <-  training_reduced_ds[folds$Fold05,]
+
+training_reduced_ds_kf06 <- training_reduced_ds[-folds$Fold06,]
+testing_reduced_ds_kf06 <- training_reduced_ds[folds$Fold06,]
+
+training_reduced_ds_kf07 <- training_reduced_ds[-folds$Fold07,]
+testing_reduced_ds_kf07 <- training_reduced_ds[folds$Fold07,]
+
+training_reduced_ds_kf08 <- training_reduced_ds[-folds$Fold08,]
+testing_reduced_ds_kf08 <- training_reduced_ds[folds$Fold08,]
+
+training_reduced_ds_kf09 <- training_reduced_ds[-folds$Fold09,]
+testing_reduced_ds_kf09 <- training_reduced_ds[folds$Fold09,]
+
+training_reduced_ds_kf10 <- training_reduced_ds[-folds$Fold10,]
+testing_reduced_ds_kf10 <- training_reduced_ds[folds$Fold10,]
+```
+
+We create 10 predictive models using the training datasets generated above 
+
+```{r,echo=TRUE}
+modelfit_kf01 <- randomForest(classe~ .,data=training_reduced_ds_kf01)
+modelfit_kf02 <- randomForest(classe~ .,data=training_reduced_ds_kf02)
+modelfit_kf03 <- randomForest(classe~ .,data=training_reduced_ds_kf03)
+modelfit_kf04 <- randomForest(classe~ .,data=training_reduced_ds_kf04)
+modelfit_kf05 <- randomForest(classe~ .,data=training_reduced_ds_kf05)
+modelfit_kf06 <- randomForest(classe~ .,data=training_reduced_ds_kf06)
+modelfit_kf07 <- randomForest(classe~ .,data=training_reduced_ds_kf07)
+modelfit_kf08 <- randomForest(classe~ .,data=training_reduced_ds_kf08)
+modelfit_kf09 <- randomForest(classe~ .,data=training_reduced_ds_kf09)
+modelfit_kf10 <- randomForest(classe~ .,data=training_reduced_ds_kf10)
+```
+
+We predict for each models using the 10  testing datasets initially created
+using our 10 mutually exclusive folds.
+
+```{r,echo=TRUE}
+predictions_kf01 <- predict(modelfit_kf01, newdata = testing_reduced_ds_kf01)
+predictions_kf02 <- predict(modelfit_kf02, newdata = testing_reduced_ds_kf02)
+predictions_kf03 <- predict(modelfit_kf03, newdata = testing_reduced_ds_kf03)
+predictions_kf04 <- predict(modelfit_kf04, newdata = testing_reduced_ds_kf04)
+predictions_kf05 <- predict(modelfit_kf05, newdata = testing_reduced_ds_kf05)
+predictions_kf06 <- predict(modelfit_kf06, newdata = testing_reduced_ds_kf06)
+predictions_kf07 <- predict(modelfit_kf07, newdata = testing_reduced_ds_kf07)
+predictions_kf08 <- predict(modelfit_kf08, newdata = testing_reduced_ds_kf08)
+predictions_kf09 <- predict(modelfit_kf09, newdata = testing_reduced_ds_kf09)
+predictions_kf10 <- predict(modelfit_kf10, newdata = testing_reduced_ds_kf10)
+```
+
+For each model we evaluate a confusion matrix
+
+```{r,echo=TRUE}
+cm_kf01 <- confusionMatrix(predictions_kf01,testing_reduced_ds_kf01$classe)
+cm_kf02 <- confusionMatrix(predictions_kf02,testing_reduced_ds_kf02$classe)
+cm_kf03 <- confusionMatrix(predictions_kf03,testing_reduced_ds_kf03$classe)
+cm_kf04 <- confusionMatrix(predictions_kf04,testing_reduced_ds_kf04$classe)
+cm_kf05 <- confusionMatrix(predictions_kf05,testing_reduced_ds_kf05$classe)
+cm_kf06 <- confusionMatrix(predictions_kf06,testing_reduced_ds_kf06$classe)
+cm_kf07 <- confusionMatrix(predictions_kf07,testing_reduced_ds_kf07$classe)
+cm_kf08 <- confusionMatrix(predictions_kf08,testing_reduced_ds_kf08$classe)
+cm_kf09 <- confusionMatrix(predictions_kf09,testing_reduced_ds_kf09$classe)
+cm_kf10 <- confusionMatrix(predictions_kf10,testing_reduced_ds_kf10$classe)
+```
+
+We see that for each model we have a very high level of accurracy
+
+```{r,echo=TRUE}
+cm_kf01$overall
+cm_kf02$overall
+cm_kf03$overall
+cm_kf04$overall
+cm_kf05$overall
+cm_kf06$overall
+cm_kf07$overall
+cm_kf08$overall
+cm_kf09$overall
+cm_kf10$overall
+```
+
+We calculate the average error rate of all 10 models
+
+```{r,echo=TRUE}
+Average_error <- (cm_kf01$overall[1]+cm_kf02$overall[1]+cm_kf03$overall[1]+
+cm_kf04$overall[1]+cm_kf05$overall[1]+cm_kf06$overall[1]+
+cm_kf07$overall[1]+cm_kf08$overall[1]+cm_kf09$overall[1]+
+cm_kf10$overall[1])/10
+
+Average_error
+
+```
+We can see that the error rate calculate using the K-fold cross validation is virtually identical to the error previously evaluated. We can not then conclude that there was some overfitting in the initial model. The out of sample error will be higher than the error calculated here but we don't expect it to be a lot higher as the model seems to efficently hignore the noise present in the signal.
+
+
+## Test Validation
+
+```{r,echo=TRUE}
+test_ds<-read.csv("pml-testing.csv")
+reduced_test_ds <- test_ds[,c(valid_predictor,160)]
+
+test_predictions <- predict(modelfit, newdata = reduced_test_ds)
+test_predictions
+```
