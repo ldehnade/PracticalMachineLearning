@@ -272,6 +272,7 @@ Average_error
 We can see that the error rate calculate using the K-fold cross validation is virtually identical to the error previously evaluated. We can not then conclude that there was some overfitting in the initial model. The out of sample error will be higher than the error calculated here but we don't expect it to be a lot higher as the model seems to efficently hignore the noise present in the signal.
 
 
+
 ## Test Validation
 
 ```{r,echo=TRUE}
